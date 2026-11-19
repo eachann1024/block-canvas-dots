@@ -1,0 +1,50 @@
+{
+  "app": "blockmd",
+  "schema_version": 1,
+  "id": "block-canvas-dots",
+  "name": {
+    "zh": "画布点阵",
+    "en": "Canvas Dots"
+  },
+  "version": "1.2.0",
+  "author": "eachann1024",
+  "repo": "eachann1024/block-canvas-dots",
+  "summary": {
+    "zh": "为笔记铺上与行高对齐的点阵或方格，帮助弱视读者稳定追踪每一行",
+    "en": "Line-aligned dot or grid canvas for notes, helping low-vision readers track each line"
+  },
+  "entry": {
+    "command": [
+      "python3",
+      "-u",
+      "main.py"
+    ]
+  },
+  "permissions": [
+    "storage",
+    "notes:read"
+  ],
+  "surfaces": [
+    "settings_page"
+  ],
+  "icon": {
+    "view_box": "0 0 24 24",
+    "fill_paths": [
+      "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z"
+    ],
+    "stroke_paths": [
+      "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5v-13Z",
+      "M8.5 8.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M12 8.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M15.5 8.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M8.5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M15.5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M8.5 15.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M12 15.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0",
+      "M15.5 15.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"
+    ],
+    "accent_paths": [
+      "M12 12m-1.2 0a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0 -2.4 0"
+    ]
+  }
+}
