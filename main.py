@@ -6,13 +6,45 @@ import os
 import re
 import sys
 
-GRID_MODES = {"off": "无", "grid": "方格", "dots": "点阵"}
-
-# 标准档沿用 Thinkly canvas-modes.css 的浓度；加深档给弱视用户
 STRENGTHS = {
-    "normal": {"label": "标准", "dot_alpha": 0.16, "dot_radius": 1.0, "line_alpha": 0.07},
-    "strong": {"label": "加深", "dot_alpha": 0.34, "dot_radius": 1.4, "line_alpha": 0.14},
+    "normal": {"dot_alpha": 0.16, "dot_radius": 1.0, "line_alpha": 0.07},
+    "strong": {"dot_alpha": 0.34, "dot_radius": 1.4, "line_alpha": 0.14},
 }
+
+TEXTS = {
+    "zh": {
+        "page_title": "画布点阵",
+        "open_reader": "打开点阵阅读页",
+        "card_title": "画布",
+        "grid_mode_label": "编辑器网格",
+        "grid_modes": {"off": "无", "grid": "方格", "dots": "点阵"},
+        "grid_strength_label": "网格深浅",
+        "grid_strengths": {"normal": "标准", "strong": "加深"},
+        "last_opened": "上次打开 {time}",
+        "unknown_action": "未知操作：{action}",
+        "empty_note": "这篇笔记还没有内容。",
+        "fallback_title": "笔记",
+        "html_lang": "zh-CN",
+        "file_suffix": "点阵阅读",
+    },
+    "en": {
+        "page_title": "Canvas Dots",
+        "open_reader": "Open Dots Reader",
+        "card_title": "Canvas",
+        "grid_mode_label": "Editor Grid",
+        "grid_modes": {"off": "Off", "grid": "Grid", "dots": "Dots"},
+        "grid_strength_label": "Grid Contrast",
+        "grid_strengths": {"normal": "Standard", "strong": "Strong"},
+        "last_opened": "Last opened {time}",
+        "unknown_action": "Unknown action: {action}",
+        "empty_note": "This note has no content yet.",
+        "fallback_title": "Note",
+        "html_lang": "en",
+        "file_suffix": "dots-reader",
+    },
+}
+
+GRID_MODES = tuple(TEXTS["zh"]["grid_modes"].keys())
 
 FONT_PX = 17
 LINE_HEIGHT = 1.75
@@ -98,7 +130,8 @@ def pattern_css(mode, strength):
     return "none", 0
 
 
-def build_reader_html(note_path, blocks, cfg):
+def build_reader_html(note_path, blocks, cfg, locale="zh"):
+    t_map = TEXTS["en"] if locale == "en" else TEXTS["zh"]
     mode = cfg["grid_mode"]
     layer, inset = pattern_css(mode, cfg["grid_strength"])
     step = STEP_PX
@@ -118,13 +151,13 @@ def build_reader_html(note_path, blocks, cfg):
         else:
             rows.append(f"<p>{t}</p>")
     if not rows:
-        rows.append("<p>这篇笔记还没有内容。</p>")
+        rows.append(f"<p>{html.escape(t_map['empty_note'])}</p>")
 
-    title = html.escape(sanitize_filename(note_path) if note_path else "笔记")
+    title = html.escape(sanitize_filename(note_path) if note_path else t_map["fallback_title"])
     pattern_div = "" if mode == "off" else '<div class="pattern" aria-hidden="true"></div>'
 
     return f"""<!doctype html>
-<html lang="zh-CN">
+<html lang="{t_map['html_lang']}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -209,6 +242,10 @@ class CanvasDotsPlugin:
     def __init__(self):
         self.downloads_dir = os.path.expanduser("~/Downloads")
         self.last_status = ""
+        self.locale = "zh"
+
+    def text(self):
+        return TEXTS["en"] if self.locale == "en" else TEXTS["zh"]
 
     def normalize(self, cfg):
         out = dict(DEFAULT_CONFIG)
@@ -265,30 +302,31 @@ class CanvasDotsPlugin:
             return ""
 
     def build_page(self, cfg):
+        t = self.text()
         return {
-            "title": "画布点阵",
+            "title": t["page_title"],
             "status": self.last_status,
             "header_actions": [
-                {"id": "open_reader", "label": "打开点阵阅读页", "variant": "primary"},
+                {"id": "open_reader", "label": t["open_reader"], "variant": "primary"},
             ],
             "cards": [
                 {
                     "id": "canvas-card",
-                    "title": "画布",
+                    "title": t["card_title"],
                     "items": [
                         {
                             "kind": "segmented",
                             "id": "grid_mode",
-                            "label": "编辑器网格",
+                            "label": t["grid_mode_label"],
                             "value": cfg["grid_mode"],
-                            "options": [{"value": k, "label": v} for k, v in GRID_MODES.items()],
+                            "options": [{"value": k, "label": t["grid_modes"][k]} for k in GRID_MODES],
                         },
                         {
                             "kind": "segmented",
                             "id": "grid_strength",
-                            "label": "网格深浅",
+                            "label": t["grid_strength_label"],
                             "value": cfg["grid_strength"],
-                            "options": [{"value": k, "label": v["label"]} for k, v in STRENGTHS.items()],
+                            "options": [{"value": k, "label": t["grid_strengths"][k]} for k in STRENGTHS],
                         },
                     ],
                 }
@@ -297,6 +335,8 @@ class CanvasDotsPlugin:
 
     def handle(self, bridge, method, params):
         if method == "plugin.initialize":
+            locale = str(params.get("locale") or "").strip().lower()
+            self.locale = "en" if locale.startswith("en") else "zh"
             dl = (params.get("downloads_dir") or "").strip()
             if dl:
                 self.downloads_dir = dl
@@ -307,6 +347,7 @@ class CanvasDotsPlugin:
             return {"page": self.build_page(cfg)}
 
         if method == "plugin.action":
+            t = self.text()
             action_id = (params.get("action_id") or "").strip()
             cfg = self.merge_values(self.load_config(bridge), params.get("values"))
             self.save_config(bridge, cfg)
@@ -315,13 +356,16 @@ class CanvasDotsPlugin:
                 path = self.target_note(bridge)
                 blocks = parse_markdown_blocks(self.read_note(bridge, path))
                 os.makedirs(self.downloads_dir, exist_ok=True)
-                out_path = os.path.join(self.downloads_dir, f"{sanitize_filename(path or 'block-note')}-点阵阅读.html")
+                out_path = os.path.join(
+                    self.downloads_dir,
+                    f"{sanitize_filename(path or 'block-note')}-{t['file_suffix']}.html",
+                )
                 with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(build_reader_html(path, blocks, cfg))
-                self.last_status = f"上次打开 {now_hms()}"
+                    f.write(build_reader_html(path, blocks, cfg, self.locale))
+                self.last_status = t["last_opened"].format(time=now_hms())
                 return {"values": cfg, "page": self.build_page(cfg), "status": self.last_status, "open_path": out_path}
 
-            return {"values": cfg, "page": self.build_page(cfg), "status": f"未知操作：{action_id}"}
+            return {"values": cfg, "page": self.build_page(cfg), "status": t["unknown_action"].format(action=action_id)}
 
         if method == "plugin.shutdown":
             return {"ok": True}
