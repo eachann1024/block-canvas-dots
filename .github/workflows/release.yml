@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -35,6 +35,7 @@ jobs:
           python3 - <<'PY'
           import json
           from collections import deque
+          from concurrent.futures import ThreadPoolExecutor
           from pathlib import Path
           from queue import Empty, Queue
           import re
@@ -228,10 +229,12 @@ jobs:
 
               entry = manifest["entry"]["command"]
               entry = [str(repo / part) if (repo / part).is_file() else part for part in entry]
-              renders = []
-              for locale in ("zh", "en"):
+              def run_locale(locale):
                   with TemporaryDirectory(prefix="block-canvas-dots-i18n-") as temp:
-                      renders.append(run_plugin(entry, locale, Path(temp)))
+                      return run_plugin(entry, locale, Path(temp))
+
+              with ThreadPoolExecutor(max_workers=2) as pool:
+                  renders = list(pool.map(run_locale, ("zh", "en")))
               require(renders[0][0] != renders[1][0], "Chinese and English page titles must differ")
               require(renders[0][1] != renders[1][1], "Chinese and English rendered pages must differ")
               print("Bilingual release gate passed; no Chinese text found in English plugin output.")
@@ -299,7 +302,7 @@ jobs:
               m = re.match(r"^v?(\d+)\.(\d+)\.(\d+)$", (tag or "").strip())
               return (int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else None
 
-          raw_rels = sh("gh", "api", "--paginate", f"repos/{repo}/releases?per_page=100", "--jq", ".[]")
+          raw_rels = sh("gh", "api", f"repos/{repo}/releases?per_page=100", "--jq", ".[]")
           releases = [json.loads(line) for line in raw_rels.splitlines() if line.strip()]
           stable = [r for r in releases if not r.get("draft") and not r.get("prerelease") and parse_ver(r.get("tag_name"))]
           stable.sort(key=lambda r: parse_ver(r["tag_name"]))
