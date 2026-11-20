@@ -180,6 +180,13 @@ class CanvasDotsPlugin:
                 return None
             raise
 
+    def refresh_other_surface(self, bridge, current_surface):
+        other = SETTINGS_SECTION_SURFACE if current_surface == SETTINGS_PAGE_SURFACE else SETTINGS_PAGE_SURFACE
+        try:
+            bridge.call_host("host.ui.refresh", {"surface": other})
+        except HostRPCError:
+            pass
+
     def _validate_surface(self, params):
         surface = str((params or {}).get("surface") or SETTINGS_PAGE_SURFACE).strip() or SETTINGS_PAGE_SURFACE
         if surface not in SUPPORTED_SURFACES:
@@ -232,9 +239,13 @@ class CanvasDotsPlugin:
             cfg = self.load_config(bridge)
             values = params.get("values")
             if isinstance(values, dict) and any(k in values for k in ("grid_mode", "grid_strength")):
-                cfg = self.merge_values(cfg, values)
+                next_cfg = self.merge_values(cfg, values)
+                changed = next_cfg != cfg
+                cfg = next_cfg
                 self.save_config(bridge, cfg)
                 self.sync_host_background(bridge, cfg)
+                if changed:
+                    self.refresh_other_surface(bridge, surface)
             return {"page": self.build_page(surface, cfg), "values": cfg}
 
         if method == "plugin.action":
@@ -245,6 +256,7 @@ class CanvasDotsPlugin:
                 cfg = dict(DEFAULT_CONFIG)
                 self.save_config(bridge, cfg)
                 self.sync_host_background(bridge, cfg)
+                self.refresh_other_surface(bridge, surface)
                 status = t["reset_done"]
                 return {
                     "ok": True,
