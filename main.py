@@ -195,33 +195,44 @@ class CanvasDotsPlugin:
 
     def build_page(self, surface, cfg, status=""):
         t = self.text()
-        card_title = "" if surface == SETTINGS_SECTION_SURFACE else t["card_title"]
+        is_section = surface == SETTINGS_SECTION_SURFACE
+        card_title = "" if is_section else t["card_title"]
+        items = [
+            {
+                "kind": "segmented",
+                "id": "grid_mode",
+                "label": t["grid_mode_label"],
+                "value": cfg["grid_mode"],
+                "options": [{"value": k, "label": t["grid_modes"][k]} for k in GRID_MODES],
+            },
+            {
+                "kind": "segmented",
+                "id": "grid_strength",
+                "label": t["grid_strength_label"],
+                "value": cfg["grid_strength"],
+                "options": [{"value": k, "label": t["grid_strengths"][k]} for k in GRID_STRENGTHS],
+            },
+        ]
+        if is_section:
+            items.append(
+                {
+                    "kind": "actions",
+                    "buttons": [
+                        {"id": "reset_default", "label": t["reset_default"], "variant": "secondary"},
+                    ],
+                }
+            )
         return {
             "title": t["page_title"],
             "status": status,
-            "header_actions": [
+            "header_actions": [] if is_section else [
                 {"id": "reset_default", "label": t["reset_default"], "variant": "secondary"},
             ],
             "cards": [
                 {
                     "id": "canvas-card",
                     "title": card_title,
-                    "items": [
-                        {
-                            "kind": "segmented",
-                            "id": "grid_mode",
-                            "label": t["grid_mode_label"],
-                            "value": cfg["grid_mode"],
-                            "options": [{"value": k, "label": t["grid_modes"][k]} for k in GRID_MODES],
-                        },
-                        {
-                            "kind": "segmented",
-                            "id": "grid_strength",
-                            "label": t["grid_strength_label"],
-                            "value": cfg["grid_strength"],
-                            "options": [{"value": k, "label": t["grid_strengths"][k]} for k in GRID_STRENGTHS],
-                        },
-                    ],
+                    "items": items,
                 }
             ],
         }
