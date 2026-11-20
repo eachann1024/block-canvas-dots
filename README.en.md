@@ -1,17 +1,17 @@
-# Canvas Dots (block-canvas-dots)
+# Editor Background (block-canvas-dots)
 
-Adds a dot or square grid background aligned with note line height in Block, helping low-vision readers track each line steadily. Configuration mirrors Thinkly's Canvas -> Editor Grid settings.
+Adds a dot or square grid background aligned with note line height in Block, increasing contrast to help track each line steadily.
 
 ## Settings
 
-- **Editor Grid**: Off / Grid / Dots
-- **Grid Contrast**: Standard (Thinkly default opacity) / Strong (larger, darker dots for low-vision readability)
+- **Background Grid**: Off / Grid / Dots
+- **Contrast**: Standard / High (larger, darker pattern for stronger contrast)
 
-Click **Open Dots Reader** to generate an HTML reading view of the current note with the dot or grid background, save it to your downloads directory, and open it immediately. Symmetrical margins keep the pattern from touching edges or clipping half-dots.
+Click **Open Background Reader** to generate an HTML reading view of the current note with the dot or grid background, save it to your downloads directory, and open it immediately. Symmetrical margins keep the pattern from touching edges or clipping half-dots.
 
 ## Installation
 
-Open **Settings -> App Store** in Block and search for **Canvas Dots**, or enter the repository in **Manual Install**:
+Open **Settings -> App Store** in Block and search for **Editor Background**, or enter the repository in **Manual Install**:
 
 ```text
 eachann1024/block-canvas-dots
