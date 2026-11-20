@@ -23,7 +23,7 @@ CHINESE_TEXT = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
 TEXTS = {
     "zh": {
         "page_title": "编辑器背景",
-        "card_title": "编辑器背景",
+        "card_title": "背景样式",
         "reset_default": "恢复默认",
         "reset_done": "已恢复默认设置",
         "grid_mode_label": "背景网格",
@@ -36,7 +36,7 @@ TEXTS = {
     },
     "en": {
         "page_title": "Editor Background",
-        "card_title": "Editor Background",
+        "card_title": "Background Style",
         "reset_default": "Reset Default",
         "reset_done": "Reset to default settings",
         "grid_mode_label": "Background Grid",
@@ -188,6 +188,7 @@ class CanvasDotsPlugin:
 
     def build_page(self, surface, cfg, status=""):
         t = self.text()
+        card_title = "" if surface == SETTINGS_SECTION_SURFACE else t["card_title"]
         return {
             "title": t["page_title"],
             "status": status,
@@ -197,7 +198,7 @@ class CanvasDotsPlugin:
             "cards": [
                 {
                     "id": "canvas-card",
-                    "title": t["card_title"],
+                    "title": card_title,
                     "items": [
                         {
                             "kind": "segmented",
