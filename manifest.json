@@ -3,15 +3,15 @@
   "schema_version": 1,
   "id": "block-canvas-dots",
   "name": {
-    "zh": "画布点阵",
-    "en": "Canvas Dots"
+    "zh": "编辑器背景",
+    "en": "Editor Background"
   },
   "version": "1.2.0",
   "author": "eachann1024",
   "repo": "eachann1024/block-canvas-dots",
   "summary": {
-    "zh": "为笔记铺上与行高对齐的点阵或方格，帮助弱视读者稳定追踪每一行",
-    "en": "Line-aligned dot or grid canvas for notes, helping low-vision readers track each line"
+    "zh": "为笔记铺上与行高对齐的点阵或方格，增加对比度，稳定追踪每一行",
+    "en": "Line-aligned dot or grid background for notes, adding contrast to track each line"
   },
   "entry": {
     "command": [
