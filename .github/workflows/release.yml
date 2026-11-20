@@ -245,6 +245,8 @@ jobs:
                       editor_bg["contrast"] = contrast
                       set_bg_calls.append((mode, contrast))
                       return dict(editor_bg)
+                  if method == "host.ui.refresh":
+                      return {"ok": True}
                   raise ValueError(f"Unexpected host request: {method}")
 
               env = {k: os.environ[k] for k in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT", "COMSPEC") if k in os.environ}
