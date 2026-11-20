@@ -223,13 +223,9 @@ jobs:
               data_dir = root / "Data"
               for directory in (notebook, downloads, data_dir):
                   directory.mkdir()
-              note_name = "welcome.md"
-              notes = {
-                  note_name: "# Sample Note\n\nFirst line.\n"
-                  if locale.lower().startswith("en")
-                  else "# 示例笔记\n\n第一行内容。\n"
-              }
               storage = {}
+              editor_bg = {"mode": "off", "contrast": "standard"}
+              set_bg_calls = []
 
               def host(method, params):
                   if method == "host.storage.get":
@@ -238,12 +234,17 @@ jobs:
                   if method == "host.storage.set":
                       storage[params["key"]] = params["value"]
                       return {"ok": True}
-                  if method == "host.notes.active":
-                      return {"path": note_name}
-                  if method == "host.notes.list":
-                      return {"notes": [{"path": path} for path in notes]}
-                  if method == "host.notes.read":
-                      return {"content": notes[params["path"]]}
+                  if method == "host.ui.editor_background":
+                      return dict(editor_bg)
+                  if method == "host.ui.set_editor_background":
+                      mode = params.get("mode")
+                      contrast = params.get("contrast")
+                      require(mode in ("off", "dots", "grid"), f"{locale}: invalid editor background mode {mode!r}")
+                      require(contrast in ("standard", "high"), f"{locale}: invalid editor background contrast {contrast!r}")
+                      editor_bg["mode"] = mode
+                      editor_bg["contrast"] = contrast
+                      set_bg_calls.append((mode, contrast))
+                      return dict(editor_bg)
                   raise ValueError(f"Unexpected host request: {method}")
 
               env = {k: os.environ[k] for k in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "SYSTEMROOT", "COMSPEC") if k in os.environ}
@@ -293,6 +294,8 @@ jobs:
                       "notebook_root": str(notebook),
                   })
                   require(init.get("ready") is True, f"{locale}: plugin is not ready")
+                  require(len(set_bg_calls) >= 1 and set_bg_calls[-1] == ("dots", "standard"),
+                          f"{locale}: initialize did not sync default editor background")
                   pages_by_surface = {}
                   for surface in surfaces:
                       initial = rpc("plugin.render", {"surface": surface})["page"]
@@ -302,19 +305,43 @@ jobs:
                       pages_by_surface[surface] = initial
                       count = 1 + check_renders(rpc, locale, surface)
                       print(f"{locale} {surface}: {count} renders passed")
+
+                  before_switch = len(set_bg_calls)
+                  switched = rpc("plugin.render", {
+                      "surface": "settings_section:editor-background",
+                      "values": {"grid_mode": "grid", "grid_strength": "high"},
+                  })
+                  check_text(switched["page"], locale, f"{locale} render switch")
+                  require(switched.get("values") == {"grid_mode": "grid", "grid_strength": "high"},
+                          f"{locale}: render switch did not return updated values")
+                  require(storage.get("config") == {"grid_mode": "grid", "grid_strength": "high"},
+                          f"{locale}: render switch did not update storage")
+                  require(len(set_bg_calls) == before_switch + 1 and set_bg_calls[-1] == ("grid", "high"),
+                          f"{locale}: render switch did not call host.ui.set_editor_background")
+
+                  before_reset = len(set_bg_calls)
                   res = rpc("plugin.action", {
                       "surface": "settings_page",
-                      "action_id": "open_reader",
-                      "values": {"grid_mode": "dots", "grid_strength": "strong"},
+                      "action_id": "reset_default",
+                      "values": {},
                   })
+                  require(res.get("ok") is True, f"{locale}: reset_default failed")
+                  require(res.get("tone") == "success", f"{locale}: reset_default tone must be 'success'")
                   require(res.get("status"), f"{locale}: missing action status")
+                  require(res.get("values") == {"grid_mode": "dots", "grid_strength": "standard"},
+                          f"{locale}: reset_default did not return default values")
+                  require(storage.get("config") == {"grid_mode": "dots", "grid_strength": "standard"},
+                          f"{locale}: reset_default did not save default config")
+                  require(len(set_bg_calls) == before_reset + 1 and set_bg_calls[-1] == ("dots", "standard"),
+                          f"{locale}: reset_default did not call host.ui.set_editor_background")
                   check_text(res["status"], locale, f"{locale} action.status")
                   check_text(res["page"], locale, f"{locale} action.page")
-                  open_path = Path(res["open_path"])
-                  require(open_path.is_file(), f"{locale}: missing open_path {open_path}")
-                  check_text(open_path.read_text(encoding="utf-8"), locale, f"{locale} open_path html")
+
                   unknown = rpc("plugin.action", {"surface": "settings_page", "action_id": "unknown_test", "values": {}})
+                  require(unknown.get("ok") is False, f"{locale}: unknown action ok must be False")
                   check_text(unknown.get("status", ""), locale, f"{locale} unknown action.status")
+                  ev = rpc("plugin.event", {"event": "locale.changed", "locale": locale})
+                  require(ev.get("handled") is True, f"{locale}: locale.changed event was not handled")
                   require(rpc("plugin.shutdown").get("ok") is True, f"{locale}: shutdown failed")
                   require(process.wait(timeout=10) == 0, f"{locale}: plugin exited unsuccessfully")
                   return pages_by_surface
