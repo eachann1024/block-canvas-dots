@@ -22,11 +22,23 @@
   },
   "permissions": [
     "storage",
-    "notes:read"
+    "ui:settings"
   ],
   "surfaces": [
     "settings_page"
   ],
+  "contributes": {
+    "settings_sections": [
+      {
+        "id": "editor-background",
+        "tab": "appearance",
+        "title": {
+          "zh": "编辑器背景",
+          "en": "Editor Background"
+        }
+      }
+    ]
+  },
   "icon": {
     "view_box": "0 0 24 24",
     "fill_paths": [

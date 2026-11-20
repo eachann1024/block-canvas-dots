@@ -1,202 +1,67 @@
 #!/usr/bin/env python3
-import datetime
-import html
+"""Official block-canvas-dots plugin for Block (blockmd)."""
+
 import json
-import os
 import re
 import sys
 
-STRENGTHS = {
-    "normal": {"dot_alpha": 0.16, "dot_radius": 1.0, "line_alpha": 0.07},
-    "strong": {"dot_alpha": 0.34, "dot_radius": 1.4, "line_alpha": 0.14},
+STORAGE_KEY = "config"
+SETTINGS_PAGE_SURFACE = "settings_page"
+SETTINGS_SECTION_SURFACE = "settings_section:editor-background"
+SUPPORTED_SURFACES = {SETTINGS_PAGE_SURFACE, SETTINGS_SECTION_SURFACE}
+
+GRID_MODES = ("off", "grid", "dots")
+GRID_STRENGTHS = ("standard", "high")
+LEGACY_STRENGTH_MAP = {
+    "normal": "standard",
+    "strong": "high",
 }
+DEFAULT_CONFIG = {"grid_mode": "dots", "grid_strength": "standard"}
+
+CHINESE_TEXT = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
 
 TEXTS = {
     "zh": {
         "page_title": "编辑器背景",
-        "open_reader": "打开背景阅读页",
         "card_title": "编辑器背景",
+        "reset_default": "恢复默认",
+        "reset_done": "已恢复默认设置",
         "grid_mode_label": "背景网格",
         "grid_modes": {"off": "无", "grid": "方格", "dots": "点阵"},
         "grid_strength_label": "对比度",
-        "grid_strengths": {"normal": "标准", "strong": "高对比"},
-        "last_opened": "上次打开 {time}",
+        "grid_strengths": {"standard": "标准", "high": "高对比"},
         "unknown_action": "未知操作：{action}",
-        "empty_note": "这篇笔记还没有内容。",
-        "fallback_title": "笔记",
-        "html_lang": "zh-CN",
-        "file_suffix": "背景阅读",
+        "unsupported_surface": "不支持的界面：{surface}",
+        "unsupported_method": "不支持的方法：{method}",
     },
     "en": {
         "page_title": "Editor Background",
-        "open_reader": "Open Background Reader",
         "card_title": "Editor Background",
+        "reset_default": "Reset Default",
+        "reset_done": "Reset to default settings",
         "grid_mode_label": "Background Grid",
         "grid_modes": {"off": "Off", "grid": "Grid", "dots": "Dots"},
         "grid_strength_label": "Contrast",
-        "grid_strengths": {"normal": "Standard", "strong": "High"},
-        "last_opened": "Last opened {time}",
+        "grid_strengths": {"standard": "Standard", "high": "High"},
         "unknown_action": "Unknown action: {action}",
-        "empty_note": "This note has no content yet.",
-        "fallback_title": "Note",
-        "html_lang": "en",
-        "file_suffix": "background-reader",
+        "unsupported_surface": "Unsupported surface: {surface}",
+        "unsupported_method": "Unsupported method: {method}",
     },
 }
 
-GRID_MODES = tuple(TEXTS["zh"]["grid_modes"].keys())
 
-FONT_PX = 17
-LINE_HEIGHT = 1.75
-STEP_PX = round(FONT_PX * LINE_HEIGHT)  # 网格步距 = 字号 × 行高，文字每行落在格子上
-INK_RGB = "31, 35, 40"
+class HostRPCError(RuntimeError):
+    """JSON-RPC error returned by the Block host."""
 
-DEFAULT_CONFIG = {"grid_mode": "dots", "grid_strength": "normal"}
-
-
-def now_hms():
-    return datetime.datetime.now().strftime("%H:%M:%S")
-
-
-def sanitize_filename(name):
-    stem = os.path.splitext(os.path.basename(name or "note"))[0]
-    cleaned = re.sub(r'[\\/:*?"<>|\r\n]+', "-", stem).strip(" .-")
-    return cleaned or "note"
-
-
-def clean_inline_markdown(line):
-    s = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", line)
-    s = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", s)
-    s = re.sub(r"`([^`]+)`", r"\1", s)
-    s = re.sub(r"(\*\*|__)", "", s)
-    return s.strip()
-
-
-def parse_markdown_blocks(content):
-    blocks = []
-    in_code = False
-    for raw in (content or "").splitlines():
-        line = raw.rstrip()
-        if line.strip().startswith("```"):
-            in_code = not in_code
-            continue
-        if in_code:
-            blocks.append(("code", 0, line))
-            continue
-        if not line.strip():
-            continue
-        if re.match(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$", line):
-            blocks.append(("hr", 0, ""))
-            continue
-        m = re.match(r"^(#{1,6})\s+(.*)$", line)
-        if m:
-            blocks.append(("heading", len(m.group(1)), clean_inline_markdown(m.group(2))))
-            continue
-        m = re.match(r"^>\s?(.*)$", line)
-        if m:
-            blocks.append(("quote", 0, clean_inline_markdown(m.group(1))))
-            continue
-        m = re.match(r"^\s*(?:[-*+]|(\d+)\.)\s+(.*)$", line)
-        if m:
-            prefix = f"{m.group(1)}. " if m.group(1) else "• "
-            blocks.append(("list", 0, prefix + clean_inline_markdown(m.group(2))))
-            continue
-        text = clean_inline_markdown(line)
-        if text:
-            blocks.append(("paragraph", 0, text))
-    return blocks
-
-
-def pattern_css(mode, strength):
-    """点阵/方格只铺在内缩区域里，用 round 整数平铺：四边留白对称，不会贴边或被裁半。"""
-    s = STRENGTHS[strength]
-    step = STEP_PX
-    if mode == "dots":
-        r = s["dot_radius"]
-        layer = (
-            f"radial-gradient(circle at 50% 50%, rgba({INK_RGB}, {s['dot_alpha']}) {r}px, "
-            f"transparent {r + 0.5}px) 0 0 / {step}px {step}px round"
-        )
-        return layer, round(step / 2)
-    if mode == "grid":
-        c = f"rgba({INK_RGB}, {s['line_alpha']})"
-        layer = ", ".join([
-            f"linear-gradient(to left, {c} 1px, transparent 1px) 0 0 / 100% 100% no-repeat",
-            f"linear-gradient(to top, {c} 1px, transparent 1px) 0 0 / 100% 100% no-repeat",
-            f"linear-gradient(to bottom, {c} 1px, transparent 1px) 0 0 / {step}px {step}px round",
-            f"linear-gradient(to right, {c} 1px, transparent 1px) 0 0 / {step}px {step}px round",
-        ])
-        return layer, step
-    return "none", 0
-
-
-def build_reader_html(note_path, blocks, cfg, locale="zh"):
-    t_map = TEXTS["en"] if locale == "en" else TEXTS["zh"]
-    mode = cfg["grid_mode"]
-    layer, inset = pattern_css(mode, cfg["grid_strength"])
-    step = STEP_PX
-
-    rows = []
-    for kind, level, text in blocks:
-        t = html.escape(text)
-        if kind == "hr":
-            rows.append("<hr>")
-        elif kind == "heading":
-            lvl = min(max(level, 1), 3)
-            rows.append(f"<h{lvl}>{t}</h{lvl}>")
-        elif kind == "quote":
-            rows.append(f"<blockquote>{t}</blockquote>")
-        elif kind == "code":
-            rows.append(f"<pre>{t or ' '}</pre>")
-        else:
-            rows.append(f"<p>{t}</p>")
-    if not rows:
-        rows.append(f"<p>{html.escape(t_map['empty_note'])}</p>")
-
-    title = html.escape(sanitize_filename(note_path) if note_path else t_map["fallback_title"])
-    pattern_div = "" if mode == "off" else '<div class="pattern" aria-hidden="true"></div>'
-
-    return f"""<!doctype html>
-<html lang="{t_map['html_lang']}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
-<style>
-* {{ box-sizing: border-box; }}
-html, body {{ margin: 0; background: #ffffff; }}
-body {{
-  color: #2b3038;
-  font-family: Inter, -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: {FONT_PX}px;
-  line-height: {step}px;
-}}
-main {{ position: relative; min-height: 100vh; padding: {step * 2}px 48px {step * 3}px; }}
-.pattern {{ position: absolute; inset: {inset}px; pointer-events: none; background: {layer}; }}
-article {{ position: relative; max-width: 720px; margin: 0 auto; }}
-h1, h2, h3, p, blockquote, pre {{ margin: 0; }}
-h1 {{ font-size: {round(FONT_PX * 1.75)}px; line-height: {step * 2}px; font-weight: 700; color: #1f2328; }}
-h2 {{ margin-top: {step}px; font-size: {round(FONT_PX * 1.25)}px; line-height: {step}px; font-weight: 650; color: #1f2328; }}
-h3 {{ margin-top: {step}px; font-size: {FONT_PX}px; line-height: {step}px; font-weight: 650; color: #1f2328; }}
-blockquote {{ padding-left: 16px; border-left: 2px solid #c9ccd2; color: #4a505a; }}
-pre {{ font-family: "JetBrains Mono", Menlo, ui-monospace, monospace; font-size: 15px; white-space: pre-wrap; }}
-hr {{ border: none; height: {step}px; margin: 0; background: linear-gradient(#e6e7ea, #e6e7ea) center / 100% 1px no-repeat; }}
-@media (max-width: 640px) {{ main {{ padding-left: 20px; padding-right: 20px; }} }}
-</style>
-</head>
-<body>
-<main>
-{pattern_div}
-<article>
-{chr(10).join(rows)}
-</article>
-</main>
-</body>
-</html>
-"""
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 class HostBridge:
+    """Line-delimited JSON-RPC 2.0 bridge between plugin and Block host."""
+
     def __init__(self):
         self._seq = 1000
 
@@ -212,13 +77,17 @@ class HostBridge:
             line = sys.stdin.readline()
             if not line:
                 raise RuntimeError("stdin closed while awaiting host response")
+            line = line.strip()
+            if not line:
+                continue
             msg = json.loads(line)
             if str(msg.get("id")) == req_id:
                 if msg.get("error"):
-                    raise RuntimeError(msg["error"].get("message", "host error"))
+                    err = msg["error"]
+                    raise HostRPCError(int(err.get("code", -32000)), str(err.get("message", "host error")))
                 return msg.get("result", {})
 
-    def serve(self, handler):
+    def serve(self, handler, localize_error):
         while True:
             line = sys.stdin.readline()
             if not line:
@@ -235,79 +104,95 @@ class HostBridge:
                 if method == "plugin.shutdown":
                     break
             except Exception as exc:
-                self.send({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32000, "message": str(exc)}})
+                self.send({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32000, "message": localize_error(str(exc))},
+                })
 
 
 class CanvasDotsPlugin:
+    """Manages native editor background mode and contrast for Block."""
+
     def __init__(self):
-        self.downloads_dir = os.path.expanduser("~/Downloads")
-        self.last_status = ""
         self.locale = "zh"
 
+    def _is_en(self):
+        return str(self.locale or "").strip().lower().startswith("en")
+
     def text(self):
-        return TEXTS["en"] if self.locale == "en" else TEXTS["zh"]
+        return TEXTS["en"] if self._is_en() else TEXTS["zh"]
 
-    def normalize(self, cfg):
+    def _localize_error(self, message):
+        text = str(message or "").strip()
+        if self._is_en() and CHINESE_TEXT.search(text):
+            return "Operation failed"
+        return text or ("Operation failed" if self._is_en() else "操作失败")
+
+    @staticmethod
+    def normalize(cfg):
         out = dict(DEFAULT_CONFIG)
-        if cfg.get("grid_mode") in GRID_MODES:
-            out["grid_mode"] = cfg["grid_mode"]
-        if cfg.get("grid_strength") in STRENGTHS:
-            out["grid_strength"] = cfg["grid_strength"]
+        if not isinstance(cfg, dict):
+            return out
+        mode = str(cfg.get("grid_mode") or "").strip().lower()
+        if mode in GRID_MODES:
+            out["grid_mode"] = mode
+        strength = str(cfg.get("grid_strength") or "").strip().lower()
+        strength = LEGACY_STRENGTH_MAP.get(strength, strength)
+        if strength in GRID_STRENGTHS:
+            out["grid_strength"] = strength
         return out
-
-    def load_config(self, bridge):
-        try:
-            res = bridge.call_host("host.storage.get", {"key": "config"})
-            if res.get("found") and isinstance(res.get("value"), dict):
-                return self.normalize(res["value"])
-        except Exception:
-            pass
-        return dict(DEFAULT_CONFIG)
-
-    def save_config(self, bridge, cfg):
-        try:
-            bridge.call_host("host.storage.set", {"key": "config", "value": cfg})
-        except Exception:
-            pass
 
     def merge_values(self, cfg, values):
         if not isinstance(values, dict):
-            return cfg
+            return self.normalize(cfg)
         merged = dict(cfg)
         for key in ("grid_mode", "grid_strength"):
             if isinstance(values.get(key), str):
                 merged[key] = values[key]
         return self.normalize(merged)
 
-    def target_note(self, bridge):
+    def load_config(self, bridge):
         try:
-            active = (bridge.call_host("host.notes.active", {}).get("path") or "").strip()
-            if active:
-                return active
-        except Exception:
-            pass
-        try:
-            notes = bridge.call_host("host.notes.list", {}).get("notes", [])
-            paths = [n.get("path") for n in notes if n.get("path")]
-            return paths[0] if paths else ""
-        except Exception:
-            return ""
+            res = bridge.call_host("host.storage.get", {"key": STORAGE_KEY})
+            if isinstance(res, dict) and res.get("found") and isinstance(res.get("value"), dict):
+                return self.normalize(res["value"])
+        except HostRPCError as exc:
+            if exc.code != -32601:
+                raise
+        return dict(DEFAULT_CONFIG)
 
-    def read_note(self, bridge, path):
-        if not path:
-            return ""
+    def save_config(self, bridge, cfg):
         try:
-            return bridge.call_host("host.notes.read", {"path": path}).get("content") or ""
-        except Exception:
-            return ""
+            bridge.call_host("host.storage.set", {"key": STORAGE_KEY, "value": cfg})
+        except HostRPCError as exc:
+            if exc.code != -32601:
+                raise
 
-    def build_page(self, cfg):
+    def sync_host_background(self, bridge, cfg):
+        try:
+            return bridge.call_host(
+                "host.ui.set_editor_background",
+                {"mode": cfg["grid_mode"], "contrast": cfg["grid_strength"]},
+            )
+        except HostRPCError as exc:
+            if exc.code == -32601:
+                return None
+            raise
+
+    def _validate_surface(self, params):
+        surface = str((params or {}).get("surface") or SETTINGS_PAGE_SURFACE).strip() or SETTINGS_PAGE_SURFACE
+        if surface not in SUPPORTED_SURFACES:
+            raise RuntimeError(self.text()["unsupported_surface"].format(surface=surface))
+        return surface
+
+    def build_page(self, surface, cfg, status=""):
         t = self.text()
         return {
             "title": t["page_title"],
-            "status": self.last_status,
+            "status": status,
             "header_actions": [
-                {"id": "open_reader", "label": t["open_reader"], "variant": "primary"},
+                {"id": "reset_default", "label": t["reset_default"], "variant": "secondary"},
             ],
             "cards": [
                 {
@@ -326,7 +211,7 @@ class CanvasDotsPlugin:
                             "id": "grid_strength",
                             "label": t["grid_strength_label"],
                             "value": cfg["grid_strength"],
-                            "options": [{"value": k, "label": t["grid_strengths"][k]} for k in STRENGTHS],
+                            "options": [{"value": k, "label": t["grid_strengths"][k]} for k in GRID_STRENGTHS],
                         },
                     ],
                 }
@@ -337,41 +222,65 @@ class CanvasDotsPlugin:
         if method == "plugin.initialize":
             locale = str(params.get("locale") or "").strip().lower()
             self.locale = "en" if locale.startswith("en") else "zh"
-            dl = (params.get("downloads_dir") or "").strip()
-            if dl:
-                self.downloads_dir = dl
+            cfg = self.load_config(bridge)
+            self.sync_host_background(bridge, cfg)
             return {"ready": True}
 
         if method == "plugin.render":
-            cfg = self.merge_values(self.load_config(bridge), params.get("values"))
-            return {"page": self.build_page(cfg)}
+            surface = self._validate_surface(params)
+            cfg = self.load_config(bridge)
+            values = params.get("values")
+            if isinstance(values, dict) and any(k in values for k in ("grid_mode", "grid_strength")):
+                cfg = self.merge_values(cfg, values)
+                self.save_config(bridge, cfg)
+                self.sync_host_background(bridge, cfg)
+            return {"page": self.build_page(surface, cfg), "values": cfg}
 
         if method == "plugin.action":
+            surface = self._validate_surface(params)
             t = self.text()
-            action_id = (params.get("action_id") or "").strip()
-            cfg = self.merge_values(self.load_config(bridge), params.get("values"))
-            self.save_config(bridge, cfg)
+            action_id = str(params.get("action_id") or "").strip()
+            if action_id == "reset_default":
+                cfg = dict(DEFAULT_CONFIG)
+                self.save_config(bridge, cfg)
+                self.sync_host_background(bridge, cfg)
+                status = t["reset_done"]
+                return {
+                    "ok": True,
+                    "tone": "success",
+                    "status": status,
+                    "values": cfg,
+                    "page": self.build_page(surface, cfg, status=status),
+                }
 
-            if action_id == "open_reader":
-                path = self.target_note(bridge)
-                blocks = parse_markdown_blocks(self.read_note(bridge, path))
-                os.makedirs(self.downloads_dir, exist_ok=True)
-                out_path = os.path.join(
-                    self.downloads_dir,
-                    f"{sanitize_filename(path or 'block-note')}-{t['file_suffix']}.html",
-                )
-                with open(out_path, "w", encoding="utf-8") as f:
-                    f.write(build_reader_html(path, blocks, cfg, self.locale))
-                self.last_status = t["last_opened"].format(time=now_hms())
-                return {"values": cfg, "page": self.build_page(cfg), "status": self.last_status, "open_path": out_path}
+            cfg = self.load_config(bridge)
+            status = t["unknown_action"].format(action=action_id)
+            return {
+                "ok": False,
+                "tone": "warning",
+                "status": status,
+                "values": cfg,
+                "page": self.build_page(surface, cfg),
+            }
 
-            return {"values": cfg, "page": self.build_page(cfg), "status": t["unknown_action"].format(action=action_id)}
+        if method == "plugin.event":
+            event_name = str(params.get("event") or "")
+            if event_name == "locale.changed" and params.get("locale"):
+                locale = str(params["locale"]).strip().lower()
+                self.locale = "en" if locale.startswith("en") else "zh"
+                return {"handled": True}
+            return {"handled": False}
 
         if method == "plugin.shutdown":
             return {"ok": True}
 
-        raise RuntimeError(f"unsupported method: {method}")
+        raise RuntimeError(self.text()["unsupported_method"].format(method=method))
+
+
+def main():
+    plugin = CanvasDotsPlugin()
+    HostBridge().serve(plugin.handle, plugin._localize_error)
 
 
 if __name__ == "__main__":
-    HostBridge().serve(CanvasDotsPlugin().handle)
+    main()
