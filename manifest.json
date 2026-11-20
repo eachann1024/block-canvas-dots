@@ -24,6 +24,16 @@
     "storage",
     "ui:settings"
   ],
+  "permission_reasons": {
+    "storage": {
+      "zh": "保存背景样式、对比度与对齐方式设置",
+      "en": "Save editor background style, contrast, and alignment preferences"
+    },
+    "ui:settings": {
+      "zh": "在外观设置中应用并切换编辑器点阵或方格背景",
+      "en": "Apply and toggle editor dot or grid backgrounds in Appearance settings"
+    }
+  },
   "surfaces": [
     "settings_page"
   ],
