@@ -1,19 +1,11 @@
-# Editor Background (block-canvas-dots)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/card-en-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/card-en-light.png">
+  <img alt="Editor Background" src="assets/card-en-light.png">
+</picture>
 
-Adds a line-aligned dot or grid background directly inside the Block editor, increasing contrast to help track each line steadily while reading and writing.
+- **Line-aligned**: Dots and grid lines match editor line height to guide your eyes.
+- **Contrast presets**: Switch between None, Dots, and Grid with Standard or High Contrast.
+- **Instant apply**: Toggle directly from Settings -> Appearance with one-click Reset Default.
 
-## Settings
-
-Switch options directly in **Settings -> Appearance** or on the plugin settings page, with changes taking effect live in the editor:
-
-- **Background Grid**: Off / Grid / Dots
-- **Contrast**: Standard / High (stronger dot and grid line contrast)
-- **Reset Default**: Restore the default **Dots + Standard** preset in one click
-
-## Installation
-
-Open **Settings -> App Store** in Block and search for **Editor Background**, or enter the repository in **Manual Install**:
-
-```text
-eachann1024/block-canvas-dots
-```
+**Install**: Open Block Settings -> App Store and search **Editor Background**, or enter `eachann1024/block-canvas-dots`.
