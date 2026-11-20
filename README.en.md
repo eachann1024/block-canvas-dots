@@ -1,13 +1,14 @@
 # Editor Background (block-canvas-dots)
 
-Adds a dot or square grid background aligned with note line height in Block, increasing contrast to help track each line steadily.
+Adds a line-aligned dot or grid background directly inside the Block editor, increasing contrast to help track each line steadily while reading and writing.
 
 ## Settings
 
-- **Background Grid**: Off / Grid / Dots
-- **Contrast**: Standard / High (larger, darker pattern for stronger contrast)
+Switch options directly in **Settings -> Appearance** or on the plugin settings page, with changes taking effect live in the editor:
 
-Click **Open Background Reader** to generate an HTML reading view of the current note with the dot or grid background, save it to your downloads directory, and open it immediately. Symmetrical margins keep the pattern from touching edges or clipping half-dots.
+- **Background Grid**: Off / Grid / Dots
+- **Contrast**: Standard / High (stronger dot and grid line contrast)
+- **Reset Default**: Restore the default **Dots + Standard** preset in one click
 
 ## Installation
 
