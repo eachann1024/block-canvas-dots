@@ -6,7 +6,7 @@
     "zh": "编辑器背景",
     "en": "Editor Background"
   },
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "eachann1024",
   "repo": "eachann1024/block-canvas-dots",
   "summary": {
@@ -30,25 +30,13 @@
       "en": "Save editor background style, contrast, and alignment preferences"
     },
     "ui:settings": {
-      "zh": "在外观设置中应用并切换编辑器点阵或方格背景",
-      "en": "Apply and toggle editor dot or grid backgrounds in Appearance settings"
+      "zh": "应用并切换编辑器点阵或方格背景",
+      "en": "Apply and toggle editor dot or grid backgrounds"
     }
   },
   "surfaces": [
     "settings_page"
   ],
-  "contributes": {
-    "settings_sections": [
-      {
-        "id": "editor-background",
-        "tab": "appearance",
-        "title": {
-          "zh": "编辑器背景",
-          "en": "Editor Background"
-        }
-      }
-    ]
-  },
   "icon": {
     "view_box": "0 0 24 24",
     "fill_paths": [
