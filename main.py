@@ -7,8 +7,7 @@ import sys
 
 STORAGE_KEY = "config"
 SETTINGS_PAGE_SURFACE = "settings_page"
-SETTINGS_SECTION_SURFACE = "settings_section:editor-background"
-SUPPORTED_SURFACES = {SETTINGS_PAGE_SURFACE, SETTINGS_SECTION_SURFACE}
+SUPPORTED_SURFACES = {SETTINGS_PAGE_SURFACE}
 
 GRID_MODES = ("off", "grid", "dots")
 GRID_STRENGTHS = ("standard", "high")
@@ -180,23 +179,14 @@ class CanvasDotsPlugin:
                 return None
             raise
 
-    def refresh_other_surface(self, bridge, current_surface):
-        other = SETTINGS_SECTION_SURFACE if current_surface == SETTINGS_PAGE_SURFACE else SETTINGS_PAGE_SURFACE
-        try:
-            bridge.call_host("host.ui.refresh", {"surface": other})
-        except HostRPCError:
-            pass
-
     def _validate_surface(self, params):
         surface = str((params or {}).get("surface") or SETTINGS_PAGE_SURFACE).strip() or SETTINGS_PAGE_SURFACE
         if surface not in SUPPORTED_SURFACES:
             raise RuntimeError(self.text()["unsupported_surface"].format(surface=surface))
         return surface
 
-    def build_page(self, surface, cfg, status=""):
+    def build_page(self, cfg, status=""):
         t = self.text()
-        is_section = surface == SETTINGS_SECTION_SURFACE
-        card_title = "" if is_section else t["card_title"]
         items = [
             {
                 "kind": "segmented",
@@ -213,25 +203,16 @@ class CanvasDotsPlugin:
                 "options": [{"value": k, "label": t["grid_strengths"][k]} for k in GRID_STRENGTHS],
             },
         ]
-        if is_section:
-            items.append(
-                {
-                    "kind": "actions",
-                    "buttons": [
-                        {"id": "reset_default", "label": t["reset_default"], "variant": "secondary"},
-                    ],
-                }
-            )
         return {
             "title": t["page_title"],
             "status": status,
-            "header_actions": [] if is_section else [
+            "header_actions": [
                 {"id": "reset_default", "label": t["reset_default"], "variant": "secondary"},
             ],
             "cards": [
                 {
                     "id": "canvas-card",
-                    "title": card_title,
+                    "title": t["card_title"],
                     "items": items,
                 }
             ],
@@ -246,35 +227,30 @@ class CanvasDotsPlugin:
             return {"ready": True}
 
         if method == "plugin.render":
-            surface = self._validate_surface(params)
+            self._validate_surface(params)
             cfg = self.load_config(bridge)
             values = params.get("values")
             if isinstance(values, dict) and any(k in values for k in ("grid_mode", "grid_strength")):
-                next_cfg = self.merge_values(cfg, values)
-                changed = next_cfg != cfg
-                cfg = next_cfg
+                cfg = self.merge_values(cfg, values)
                 self.save_config(bridge, cfg)
                 self.sync_host_background(bridge, cfg)
-                if changed:
-                    self.refresh_other_surface(bridge, surface)
-            return {"page": self.build_page(surface, cfg), "values": cfg}
+            return {"page": self.build_page(cfg), "values": cfg}
 
         if method == "plugin.action":
-            surface = self._validate_surface(params)
+            self._validate_surface(params)
             t = self.text()
             action_id = str(params.get("action_id") or "").strip()
             if action_id == "reset_default":
                 cfg = dict(DEFAULT_CONFIG)
                 self.save_config(bridge, cfg)
                 self.sync_host_background(bridge, cfg)
-                self.refresh_other_surface(bridge, surface)
                 status = t["reset_done"]
                 return {
                     "ok": True,
                     "tone": "success",
                     "status": status,
                     "values": cfg,
-                    "page": self.build_page(surface, cfg, status=status),
+                    "page": self.build_page(cfg, status=status),
                 }
 
             cfg = self.load_config(bridge)
@@ -284,7 +260,7 @@ class CanvasDotsPlugin:
                 "tone": "warning",
                 "status": status,
                 "values": cfg,
-                "page": self.build_page(surface, cfg),
+                "page": self.build_page(cfg),
             }
 
         if method == "plugin.event":
