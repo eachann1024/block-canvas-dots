@@ -310,7 +310,7 @@ jobs:
 
                   before_switch = len(set_bg_calls)
                   switched = rpc("plugin.render", {
-                      "surface": "settings_section:editor-background",
+                      "surface": "settings_page",
                       "values": {"grid_mode": "grid", "grid_strength": "high"},
                   })
                   check_text(switched["page"], locale, f"{locale} render switch")
